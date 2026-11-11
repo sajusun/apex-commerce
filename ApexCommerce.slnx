@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ApexCommerce.Admin.Blazor/ApexCommerce.Admin.Blazor.csproj" />
+    <Project Path="src/ApexCommerce.Api/ApexCommerce.Api.csproj" />
+    <Project Path="src/ApexCommerce.Application/ApexCommerce.Application.csproj" />
+    <Project Path="src/ApexCommerce.Domain/ApexCommerce.Domain.csproj" />
+    <Project Path="src/ApexCommerce.Infrastructure/ApexCommerce.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ApexCommerce.Application.UnitTests/ApexCommerce.Application.UnitTests.csproj" />
+    <Project Path="tests/ApexCommerce.Domain.UnitTests/ApexCommerce.Domain.UnitTests.csproj" />
+  </Folder>
+</Solution>

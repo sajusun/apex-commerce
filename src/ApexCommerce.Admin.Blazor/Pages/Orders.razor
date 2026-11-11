@@ -1,0 +1,328 @@
+@page "/orders"
+@inject IMediator Mediator
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+    <div>
+        <h1 style="font-size: 24px; font-weight: 700;">Order Fulfillment Management</h1>
+        <p style="color: var(--text-muted); font-size: 14px;">Monitor customer orders, assign shipping tracking, and process refunds</p>
+    </div>
+
+    <button class="btn btn-secondary" @onclick="LoadOrders">
+        <span>🔄</span> Refresh
+    </button>
+</div>
+
+<!-- Filter Bar -->
+<div class="data-table-card" style="padding: 16px 24px; margin-bottom: 24px;">
+    <div style="display: flex; gap: 16px; flex-wrap: wrap; align-items: center;">
+        <div style="flex-grow: 1; min-width: 200px;">
+            <input type="text"
+                   class="form-control"
+                   placeholder="Search by Order # or Customer Email..."
+                   @bind="searchQuery"
+                   @bind:event="oninput"
+                   @onkeyup="HandleSearch" />
+        </div>
+
+        <div style="min-width: 180px;">
+            <select class="form-control" @bind="selectedStatus" @bind:after="LoadOrders">
+                <option value="">All Statuses</option>
+                <option value="PendingPayment">Pending Payment</option>
+                <option value="Processing">Processing</option>
+                <option value="Shipped">Shipped</option>
+                <option value="Delivered">Delivered</option>
+                <option value="Cancelled">Cancelled</option>
+                <option value="Refunded">Refunded</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+<!-- Orders Table -->
+<div class="data-table-card">
+    <div class="card-header">
+        <h3>Orders Queue</h3>
+        <span style="font-size: 13px; color: var(--text-muted);">Total: @orders.Count orders</span>
+    </div>
+
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Order Number</th>
+                    <th>Customer</th>
+                    <th>Date</th>
+                    <th>Items</th>
+                    <th>Total</th>
+                    <th>Payment</th>
+                    <th>Fulfillment Status</th>
+                    <th style="text-align: right;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (isLoading)
+                {
+                    <tr>
+                        <td colspan="8" style="text-align: center; padding: 32px; color: var(--text-muted);">
+                            Loading live orders from PostgreSQL...
+                        </td>
+                    </tr>
+                }
+                else if (orders.Count == 0)
+                {
+                    <tr>
+                        <td colspan="8" style="text-align: center; padding: 32px; color: var(--text-muted);">
+                            No orders found matching your criteria.
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var order in orders)
+                    {
+                        <tr>
+                            <td style="font-weight: 700;">@order.OrderNumber</td>
+                            <td>@order.CustomerEmail</td>
+                            <td style="font-size: 13px; color: var(--text-muted);">@order.CreatedAtUtc.ToString("MMM dd, yyyy HH:mm")</td>
+                            <td>@order.ItemsCount items</td>
+                            <td style="font-weight: 700;">$@order.TotalAmount.ToString("N2")</td>
+                            <td>
+                                @if (order.PaymentStatus == "Captured" || order.PaymentStatus == "Paid")
+                                {
+                                    <span class="badge badge-delivered">Paid</span>
+                                }
+                                else if (order.PaymentStatus == "Refunded")
+                                {
+                                    <span class="badge badge-cancelled">Refunded</span>
+                                }
+                                else
+                                {
+                                    <span class="badge badge-pending">Unpaid</span>
+                                }
+                            </td>
+                            <td>
+                                <span class="badge @GetStatusBadgeClass(order.Status)">@order.Status</span>
+                                @if (!string.IsNullOrEmpty(order.TrackingNumber))
+                                {
+                                    <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">
+                                        TRK: @order.TrackingNumber
+                                    </div>
+                                }
+                            </td>
+                            <td style="text-align: right;">
+                                @if (order.Status == "Processing" || order.Status == "PendingPayment")
+                                {
+                                    <button class="btn btn-primary btn-sm" @onclick="() => OpenShipModal(order)">
+                                        Ship Order
+                                    </button>
+                                }
+                                else if (order.Status == "Shipped")
+                                {
+                                    <button class="btn btn-secondary btn-sm" @onclick="() => MarkDelivered(order)">
+                                        Mark Delivered
+                                    </button>
+                                }
+
+                                @if (order.PaymentStatus == "Captured" && order.Status != "Refunded")
+                                {
+                                    <button class="btn btn-secondary btn-sm" style="margin-left: 6px; color: var(--danger);" @onclick="() => OpenRefundModal(order)">
+                                        Refund
+                                    </button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Ship Order Modal -->
+@if (selectedOrderForShip != null)
+{
+    <div class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Ship Order: @selectedOrderForShip.OrderNumber</h3>
+                <button class="btn btn-secondary btn-sm" @onclick="CloseModals">✕</button>
+            </div>
+
+            <div class="form-group">
+                <label>Carrier</label>
+                <select class="form-control" @bind="carrierName">
+                    <option value="FedEx Express">FedEx Express</option>
+                    <option value="UPS Ground">UPS Ground</option>
+                    <option value="DHL Global">DHL Global</option>
+                    <option value="Pathao / RedX (Local)">Local Courier</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Tracking Number</label>
+                <input type="text" class="form-control" placeholder="e.g. TRK-882910283" @bind="trackingNumber" />
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px;">
+                <button class="btn btn-secondary" @onclick="CloseModals">Cancel</button>
+                <button class="btn btn-primary" @onclick="ConfirmShipOrder">Confirm Shipment</button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Refund Order Modal -->
+@if (selectedOrderForRefund != null)
+{
+    <div class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 style="color: var(--danger);">Refund Order: @selectedOrderForRefund.OrderNumber</h3>
+                <button class="btn btn-secondary btn-sm" @onclick="CloseModals">✕</button>
+            </div>
+
+            <div class="form-group">
+                <label>Refund Reason</label>
+                <textarea class="form-control" rows="3" placeholder="Explain the reason for refund..." @bind="refundReason"></textarea>
+            </div>
+
+            <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
+                <input type="checkbox" id="restock" @bind="restockItemsOnRefund" />
+                <label for="restock" style="margin-bottom: 0;">Restock items back into inventory</label>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px;">
+                <button class="btn btn-secondary" @onclick="CloseModals">Cancel</button>
+                <button class="btn btn-primary" style="background: var(--danger);" @onclick="ConfirmRefundOrder">Process Refund</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<AdminOrderDto> orders = [];
+    private bool isLoading = true;
+    private string searchQuery = string.Empty;
+    private string selectedStatus = string.Empty;
+
+    private AdminOrderDto? selectedOrderForShip;
+    private string carrierName = "FedEx Express";
+    private string trackingNumber = string.Empty;
+
+    private AdminOrderDto? selectedOrderForRefund;
+    private string refundReason = "Customer request";
+    private bool restockItemsOnRefund = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadOrders();
+    }
+
+    private async Task LoadOrders()
+    {
+        isLoading = true;
+        try
+        {
+            OrderStatus? status = null;
+            if (Enum.TryParse<OrderStatus>(selectedStatus, out var parsedStatus))
+            {
+                status = parsedStatus;
+            }
+
+            var query = new GetAdminOrdersQuery(
+                Status: status,
+                Search: string.IsNullOrWhiteSpace(searchQuery) ? null : searchQuery,
+                Page: 1,
+                PageSize: 50
+            );
+
+            var result = await Mediator.Send(query);
+            orders = result.Items.ToList();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task HandleSearch()
+    {
+        await LoadOrders();
+    }
+
+    private void OpenShipModal(AdminOrderDto order)
+    {
+        selectedOrderForShip = order;
+        trackingNumber = $"TRK-{Random.Shared.Next(1000000, 9999999)}";
+    }
+
+    private void OpenRefundModal(AdminOrderDto order)
+    {
+        selectedOrderForRefund = order;
+    }
+
+    private void CloseModals()
+    {
+        selectedOrderForShip = null;
+        selectedOrderForRefund = null;
+    }
+
+    private async Task ConfirmShipOrder()
+    {
+        if (selectedOrderForShip == null || string.IsNullOrWhiteSpace(trackingNumber)) return;
+
+        var command = new UpdateOrderStatusCommand(
+            selectedOrderForShip.Id,
+            OrderStatus.Shipped,
+            trackingNumber,
+            carrierName,
+            "BlazorAdmin"
+        );
+
+        await Mediator.Send(command);
+        CloseModals();
+        await LoadOrders(); // Reactive refresh
+    }
+
+    private async Task MarkDelivered(AdminOrderDto order)
+    {
+        var command = new UpdateOrderStatusCommand(
+            order.Id,
+            OrderStatus.Delivered,
+            order.TrackingNumber,
+            "Carrier",
+            "BlazorAdmin"
+        );
+
+        await Mediator.Send(command);
+        await LoadOrders();
+    }
+
+    private async Task ConfirmRefundOrder()
+    {
+        if (selectedOrderForRefund == null) return;
+
+        var command = new RefundOrderCommand(
+            selectedOrderForRefund.Id,
+            refundReason,
+            "BlazorAdmin",
+            restockItemsOnRefund
+        );
+
+        await Mediator.Send(command);
+        CloseModals();
+        await LoadOrders();
+    }
+
+    private string GetStatusBadgeClass(string status) => status switch
+    {
+        "PendingPayment" => "badge-pending",
+        "Processing" => "badge-processing",
+        "Shipped" => "badge-shipped",
+        "Delivered" => "badge-delivered",
+        "Cancelled" => "badge-cancelled",
+        "Refunded" => "badge-cancelled",
+        _ => "badge-secondary"
+    };
+}
+

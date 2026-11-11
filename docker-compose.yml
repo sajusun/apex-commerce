@@ -1,0 +1,75 @@
+services:
+  apexcommerce-db:
+    image: postgres:16-alpine
+    container_name: apexcommerce_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_DB: apexcommerce_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d apexcommerce_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  apexcommerce-redis:
+    image: redis:7-alpine
+    container_name: apexcommerce_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  apexcommerce-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: apexcommerce_api
+    restart: unless-stopped
+    ports:
+      - "5000:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Host=apexcommerce-db;Port=5432;Database=apexcommerce_db;Username=postgres;Password=postgrespassword
+      - ConnectionStrings__Redis=apexcommerce-redis:6379
+      - JwtSettings__Secret=ApexCommerceSuperSecretLongKeyForHmacSha256Security1234567890!
+      - JwtSettings__Issuer=ApexCommerceApi
+      - JwtSettings__Audience=ApexCommerceClient
+    depends_on:
+      apexcommerce-db:
+        condition: service_healthy
+      apexcommerce-redis:
+        condition: service_healthy
+
+  apexcommerce-admin:
+    build:
+      context: .
+      dockerfile: Dockerfile.admin
+    container_name: apexcommerce_admin_blazor
+    restart: unless-stopped
+    ports:
+      - "5001:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Host=apexcommerce-db;Port=5432;Database=apexcommerce_db;Username=postgres;Password=postgrespassword
+      - ConnectionStrings__Redis=apexcommerce-redis:6379
+    depends_on:
+      apexcommerce-db:
+        condition: service_healthy
+      apexcommerce-redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:

@@ -1,0 +1,27 @@
+@inherits LayoutComponentBase
+
+<div class="admin-layout">
+    <NavMenu />
+
+    <div class="main-wrapper">
+        <header class="top-navbar">
+            <div class="signalr-indicator">
+                <span class="pulse-dot"></span>
+                <span>SignalR WebSocket Live</span>
+            </div>
+
+            <div class="user-profile">
+                <div class="user-avatar">AD</div>
+                <div>
+                    <div style="font-size: 14px; font-weight: 600;">System Admin</div>
+                    <div style="font-size: 11px; color: var(--text-muted);">admin@apexcommerce.com</div>
+                </div>
+            </div>
+        </header>
+
+        <main class="page-content">
+            @Body
+        </main>
+    </div>
+</div>
+

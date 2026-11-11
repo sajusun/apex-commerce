@@ -1,0 +1,173 @@
+@page "/inventory"
+@inject IMediator Mediator
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+    <div>
+        <h1 style="font-size: 24px; font-weight: 700;">Inventory Radar & Stock Control</h1>
+        <p style="color: var(--text-muted); font-size: 14px;">Monitor safety stock levels and execute auditable inventory restocks</p>
+    </div>
+
+    <button class="btn btn-secondary" @onclick="LoadInventory">
+        <span>🔄</span> Refresh Radar
+    </button>
+</div>
+
+<!-- Low Stock Radar Table -->
+<div class="data-table-card">
+    <div class="card-header" style="background: #fff5f5;">
+        <h3 style="color: var(--danger);">⚠️ Critical Low-Stock Radar</h3>
+        <span style="font-size: 13px; color: var(--danger); font-weight: 600;">@lowStockVariants.Count variants require attention</span>
+    </div>
+
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Product Name</th>
+                    <th>Variant</th>
+                    <th>SKU</th>
+                    <th>Available Stock</th>
+                    <th>Reserved Stock</th>
+                    <th>Low Threshold</th>
+                    <th style="text-align: right;">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (isLoading)
+                {
+                    <tr>
+                        <td colspan="7" style="text-align: center; padding: 32px; color: var(--text-muted);">
+                            Scanning warehouse inventory levels...
+                        </td>
+                    </tr>
+                }
+                else if (lowStockVariants.Count == 0)
+                {
+                    <tr>
+                        <td colspan="7" style="text-align: center; padding: 32px; color: var(--success); font-weight: 600;">
+                            ✓ All product variants are currently above their minimum safety thresholds!
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var variant in lowStockVariants)
+                    {
+                        <tr>
+                            <td style="font-weight: 600;">@variant.ProductName</td>
+                            <td>@variant.VariantName</td>
+                            <td><code>@variant.Sku</code></td>
+                            <td>
+                                <span class="badge badge-lowstock">@variant.AvailableStock units left</span>
+                            </td>
+                            <td>@variant.ReservedStock units</td>
+                            <td>@variant.LowStockThreshold units</td>
+                            <td style="text-align: right;">
+                                <button class="btn btn-primary btn-sm" @onclick="() => OpenAdjustModal(variant)">
+                                    + Restock
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Restock / Adjust Modal -->
+@if (selectedVariant != null)
+{
+    <div class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Adjust Stock: @selectedVariant.Sku</h3>
+                <button class="btn btn-secondary btn-sm" @onclick="CloseModal">✕</button>
+            </div>
+
+            <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">
+                @selectedVariant.ProductName (@selectedVariant.VariantName)
+            </p>
+
+            <div class="form-group">
+                <label>Quantity Delta (Positive for restock, negative for write-off)</label>
+                <input type="number" class="form-control" @bind="quantityDelta" />
+            </div>
+
+            <div class="form-group">
+                <label>Reason for Adjustment</label>
+                <select class="form-control" @bind="adjustReason">
+                    <option value="@InventoryChangeReason.ManualRestock">Manual Restock / Shipment Received</option>
+                    <option value="@InventoryChangeReason.DamagedLoss">Damaged / Lost Inventory</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Audit Note</label>
+                <input type="text" class="form-control" placeholder="PO # or justification..." @bind="auditNote" />
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px;">
+                <button class="btn btn-secondary" @onclick="CloseModal">Cancel</button>
+                <button class="btn btn-primary" @onclick="ConfirmStockAdjustment">Apply Adjustment</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private IReadOnlyList<LowStockVariantDto> lowStockVariants = [];
+    private bool isLoading = true;
+
+    private LowStockVariantDto? selectedVariant;
+    private int quantityDelta = 25;
+    private InventoryChangeReason adjustReason = InventoryChangeReason.ManualRestock;
+    private string auditNote = "Warehouse restock PO-2026-11";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadInventory();
+    }
+
+    private async Task LoadInventory()
+    {
+        isLoading = true;
+        try
+        {
+            lowStockVariants = await Mediator.Send(new GetLowStockVariantsQuery());
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void OpenAdjustModal(LowStockVariantDto variant)
+    {
+        selectedVariant = variant;
+        quantityDelta = 25;
+    }
+
+    private void CloseModal()
+    {
+        selectedVariant = null;
+    }
+
+    private async Task ConfirmStockAdjustment()
+    {
+        if (selectedVariant == null || quantityDelta == 0) return;
+
+        var command = new AdjustStockCommand(
+            selectedVariant.VariantId,
+            quantityDelta,
+            adjustReason,
+            "BlazorAdmin",
+            auditNote
+        );
+
+        await Mediator.Send(command);
+        CloseModal();
+        await LoadInventory();
+    }
+}
+

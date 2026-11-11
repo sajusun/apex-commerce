@@ -1,0 +1,10 @@
+bin/
+obj/
+.vs/
+.vscode/
+*.user
+*.suo
+appsettings.Production.json
+postgres_data/
+redis_data/
+

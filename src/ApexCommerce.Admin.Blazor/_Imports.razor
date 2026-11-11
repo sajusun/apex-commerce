@@ -1,0 +1,22 @@
+@using System.Net.Http
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Routing
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.AspNetCore.Components.Web.Virtualization
+@using Microsoft.JSInterop
+@using MediatR
+@using ApexCommerce.Domain.Enums
+@using ApexCommerce.Application.Common.DTOs.Admin
+@using ApexCommerce.Application.Features.Admin.Analytics.Queries.GetDashboardOverview
+@using ApexCommerce.Application.Features.Admin.Analytics.Queries.GetSalesChart
+@using ApexCommerce.Application.Features.Admin.Orders.Queries.GetAdminOrders
+@using ApexCommerce.Application.Features.Admin.Orders.Commands.UpdateOrderStatus
+@using ApexCommerce.Application.Features.Admin.Orders.Commands.RefundOrder
+@using ApexCommerce.Application.Features.Admin.Inventory.Queries.GetLowStockVariants
+@using ApexCommerce.Application.Features.Admin.Inventory.Commands.AdjustStock
+@using ApexCommerce.Application.Features.Admin.Catalog.Commands.CreateProduct
+@using ApexCommerce.Admin.Blazor.Layout
+@using ApexCommerce.Admin.Blazor.Components
+

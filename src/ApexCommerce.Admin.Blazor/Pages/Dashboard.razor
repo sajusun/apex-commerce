@@ -1,0 +1,122 @@
+@page "/"
+@inject IMediator Mediator
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+    <div>
+        <h1 style="font-size: 24px; font-weight: 700;">Executive Dashboard</h1>
+        <p style="color: var(--text-muted); font-size: 14px;">Real-time business performance and fulfillment overview</p>
+    </div>
+
+    <button class="btn btn-secondary" @onclick="LoadDashboardData">
+        <span>🔄</span> Refresh Data
+    </button>
+</div>
+
+@if (isLoading)
+{
+    <div style="padding: 40px; text-align: center; color: var(--text-muted);">
+        <p>Loading real-time executive metrics via MediatR...</p>
+    </div>
+}
+else if (overview != null)
+{
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="kpi-title">Gross Revenue</div>
+            <div class="kpi-value">$@overview.TotalRevenue.ToString("N2")</div>
+            <div class="kpi-growth">↑ +@overview.RevenueGrowthPercentage% from last month</div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-title">Orders Today</div>
+            <div class="kpi-value">@overview.OrdersToday</div>
+            <div style="font-size: 13px; color: var(--text-muted); margin-top: 8px;">Active fulfillment queue</div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-title">Average Order Value</div>
+            <div class="kpi-value">$@overview.AverageOrderValue.ToString("N2")</div>
+            <div style="font-size: 13px; color: var(--text-muted); margin-top: 8px;">Per completed transaction</div>
+        </div>
+
+        <div class="kpi-card" style="@(overview.LowStockVariantsCount > 0 ? "border-color: rgba(239, 68, 68, 0.4);" : "")">
+            <div class="kpi-title">Low Stock Alert</div>
+            <div class="kpi-value" style="@(overview.LowStockVariantsCount > 0 ? "color: var(--danger);" : "")">
+                @overview.LowStockVariantsCount
+            </div>
+            <div style="font-size: 13px; margin-top: 8px;">
+                <a href="inventory" style="color: var(--danger); font-weight: 600; text-decoration: none;">View Radar →</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 30-Day Sales Trend -->
+    <div class="data-table-card">
+        <div class="card-header">
+            <h3>Recent Sales & Order Influx</h3>
+            <span style="font-size: 13px; color: var(--text-muted);">Live database projection</span>
+        </div>
+
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Orders Count</th>
+                        <th>Total Revenue</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (salesPoints.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 32px;">
+                                No recent sales data recorded.
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var point in salesPoints.Take(10))
+                        {
+                            <tr>
+                                <td style="font-weight: 600;">@point.Date</td>
+                                <td>@point.OrdersCount orders</td>
+                                <td style="font-weight: 700; color: var(--success);">$@point.Revenue.ToString("N2")</td>
+                                <td><span class="badge badge-delivered">Reconciled</span></td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    private DashboardOverviewDto? overview;
+    private IReadOnlyList<SalesChartPointDto> salesPoints = [];
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDashboardData();
+    }
+
+    private async Task LoadDashboardData()
+    {
+        isLoading = true;
+        try
+        {
+            // Direct in-process MediatR query execution - Blazor Server power!
+            overview = await Mediator.Send(new GetDashboardOverviewQuery());
+            salesPoints = await Mediator.Send(new GetSalesChartQuery(30));
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}
+

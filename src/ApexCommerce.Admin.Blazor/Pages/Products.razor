@@ -1,0 +1,233 @@
+@page "/products"
+@using ApexCommerce.Application.Features.Store.Catalog.Queries.GetProducts
+@inject IMediator Mediator
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+    <div>
+        <h1 style="font-size: 24px; font-weight: 700;">Catalog & Products</h1>
+        <p style="color: var(--text-muted); font-size: 14px;">Manage eCommerce catalog, SKUs, and variant pricing</p>
+    </div>
+
+    <div style="display: flex; gap: 12px;">
+        <button class="btn btn-secondary" @onclick="LoadProducts">
+            <span>🔄</span> Refresh
+        </button>
+        <button class="btn btn-primary" @onclick="OpenCreateModal">
+            + New Product
+        </button>
+    </div>
+</div>
+
+<!-- Products Table -->
+<div class="data-table-card">
+    <div class="card-header">
+        <h3>Product Catalog</h3>
+        <span style="font-size: 13px; color: var(--text-muted);">Total: @products.Count products</span>
+    </div>
+
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Product Name</th>
+                    <th>Category</th>
+                    <th>Brand</th>
+                    <th>Base Price</th>
+                    <th>Total Stock</th>
+                    <th>Featured</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (isLoading)
+                {
+                    <tr>
+                        <td colspan="6" style="text-align: center; padding: 32px; color: var(--text-muted);">
+                            Loading product catalog...
+                        </td>
+                    </tr>
+                }
+                else if (products.Count == 0)
+                {
+                    <tr>
+                        <td colspan="6" style="text-align: center; padding: 32px; color: var(--text-muted);">
+                            No products found in catalog.
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var prod in products)
+                    {
+                        <tr>
+                            <td>
+                                <div style="font-weight: 600;">@prod.Name</div>
+                                <div style="font-size: 12px; color: var(--text-muted);">/@prod.Slug</div>
+                            </td>
+                            <td><span class="badge" style="background: #f1f5f9; color: #334155;">@prod.CategoryName</span></td>
+                            <td>@prod.BrandName</td>
+                            <td style="font-weight: 700;">$@prod.BasePrice.ToString("N2") @prod.Currency</td>
+                            <td>
+                                <span class="badge @(prod.TotalStock > 10 ? "badge-delivered" : "badge-lowstock")">
+                                    @prod.TotalStock units
+                                </span>
+                            </td>
+                            <td>
+                                @if (prod.IsFeatured)
+                                {
+                                    <span style="color: var(--warning); font-size: 16px;">★ Featured</span>
+                                }
+                                else
+                                {
+                                    <span style="color: var(--text-muted); font-size: 13px;">Standard</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Create Product Modal (<EditForm> demo - The Blazor counterpart to Laravel FormRequests) -->
+@if (isCreateModalOpen)
+{
+    <div class="modal-overlay">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3>Create New Catalog Product</h3>
+                <button class="btn btn-secondary btn-sm" @onclick="CloseCreateModal">✕</button>
+            </div>
+
+            <!-- Blazor EditForm: Livewire wire:submit / Laravel Form counterpart -->
+            <EditForm Model="@newProductModel" OnValidSubmit="HandleCreateProduct">
+                <DataAnnotationsValidator />
+
+                <div class="form-group">
+                    <label>Product Name</label>
+                    <InputText class="form-control" @bind-Value="newProductModel.Name" placeholder="e.g. ApexFit Pro Smart Band" />
+                </div>
+
+                <div class="form-group">
+                    <label>URL Slug</label>
+                    <InputText class="form-control" @bind-Value="newProductModel.Slug" placeholder="e.g. apexfit-pro-smart-band" />
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label>Base Price ($)</label>
+                        <InputNumber class="form-control" @bind-Value="newProductModel.BasePrice" />
+                    </div>
+
+                    <div class="form-group">
+                        <label>Initial Stock Units</label>
+                        <InputNumber class="form-control" @bind-Value="newProductModel.InitialStock" />
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label>Default SKU</label>
+                        <InputText class="form-control" @bind-Value="newProductModel.InitialSku" placeholder="e.g. FIT-BAND-01" />
+                    </div>
+
+                    <div class="form-group">
+                        <label>Variant Name</label>
+                        <InputText class="form-control" @bind-Value="newProductModel.VariantName" placeholder="e.g. Standard Black" />
+                    </div>
+                </div>
+
+                <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
+                    <InputCheckbox id="featured" @bind-Value="newProductModel.IsFeatured" />
+                    <label for="featured" style="margin-bottom: 0;">Mark as Featured Product</label>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseCreateModal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Product</button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@code {
+    private List<ProductSummaryDto> products = [];
+    private bool isLoading = true;
+    private bool isCreateModalOpen = false;
+
+    private CreateProductFormModel newProductModel = new();
+
+    public class CreateProductFormModel
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Slug { get; set; } = string.Empty;
+        public decimal BasePrice { get; set; } = 99.00m;
+        public string InitialSku { get; set; } = "SKU-NEW-01";
+        public string VariantName { get; set; } = "Standard / Black";
+        public int InitialStock { get; set; } = 50;
+        public bool IsFeatured { get; set; } = true;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProducts();
+    }
+
+    private async Task LoadProducts()
+    {
+        isLoading = true;
+        try
+        {
+            var query = new GetProductsQuery(Page: 1, PageSize: 50);
+            var result = await Mediator.Send(query);
+            products = result.Items.ToList();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void OpenCreateModal()
+    {
+        newProductModel = new CreateProductFormModel
+        {
+            InitialSku = $"APX-{Random.Shared.Next(100, 999)}-SKU"
+        };
+        isCreateModalOpen = true;
+    }
+
+    private void CloseCreateModal()
+    {
+        isCreateModalOpen = false;
+    }
+
+    private async Task HandleCreateProduct()
+    {
+        // Category: Electronics, Brand: ApexPro (from DbInitializer seeds)
+        var categoryId = Guid.Parse("10000000-0000-0000-0000-000000000001");
+        var brandId = Guid.Parse("20000000-0000-0000-0000-000000000001");
+
+        var command = new CreateProductCommand(
+            newProductModel.Name,
+            string.IsNullOrWhiteSpace(newProductModel.Slug) ? newProductModel.Name.ToLower().Replace(" ", "-") : newProductModel.Slug,
+            newProductModel.Name,
+            "Detailed product description...",
+            categoryId,
+            brandId,
+            newProductModel.BasePrice,
+            "USD",
+            newProductModel.IsFeatured,
+            new List<CreateVariantItem>
+            {
+                new(newProductModel.InitialSku, newProductModel.VariantName, 0m, newProductModel.InitialStock)
+            }
+        );
+
+        await Mediator.Send(command);
+        CloseCreateModal();
+        await LoadProducts();
+    }
+}
+
