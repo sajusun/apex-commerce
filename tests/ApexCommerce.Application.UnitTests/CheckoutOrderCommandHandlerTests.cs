@@ -54,7 +54,7 @@ public class CheckoutOrderCommandHandlerTests
 
         // Assert
         Assert.NotNull(result);
-        Assert.Equal("Submitted", result.Status == "Submitted" || result.Status == "PendingPayment" ? result.Status : "PendingPayment");
+        Assert.Equal("PendingPayment", result.Status);
         Assert.Equal(8, variant.AvailableStock); // 10 - 2 reserved
         Assert.Empty(cart.Items); // Cart was cleared
 

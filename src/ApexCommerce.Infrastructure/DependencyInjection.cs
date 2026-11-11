@@ -22,13 +22,13 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
-        // 1. Database Connection (PostgreSQL + EF Core)
+        // 1. Database Connection (MySQL + EF Core)
         var connectionString = configuration.GetConnectionString("DefaultConnection")
-            ?? "Host=localhost;Port=5432;Database=apexcommerce_db;Username=postgres;Password=postgrespassword";
+            ?? "Server=127.0.0.1;Port=3306;Database=apexcommerce_db;Uid=sakhawat;Pwd=;";
 
         services.AddDbContext<ApplicationDbContext>(options =>
         {
-            options.UseNpgsql(connectionString);
+            options.UseMySQL(connectionString);
         });
 
         // 2. Unit of Work

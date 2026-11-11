@@ -10,7 +10,7 @@ public static class DbInitializer
 {
     public static async Task SeedAsync(ApplicationDbContext context, IPasswordHasher passwordHasher)
     {
-        await context.Database.MigrateAsync();
+        await context.Database.EnsureCreatedAsync();
 
         if (await context.Users.AnyAsync())
         {
@@ -115,7 +115,7 @@ public static class DbInitializer
         );
 
         prodWatch.AddVariant(Guid.Parse("40000000-0000-0000-0000-000000000005"), new Sku("WATCH-S5-44"), "Midnight Black (44mm)", Money.Zero(), 30, 5, "91827364511");
-        prodWatch.AddVariant(Guid.Parse("40000000-0000-0000-0000-000000000006"), new Sku("WATCH-S5-40"), "Silver Aluminum (40mm)", new Money(-20.00m, "USD"), 25, 5, "91827364512");
+        prodWatch.AddVariant(Guid.Parse("40000000-0000-0000-0000-000000000006"), new Sku("WATCH-S5-40"), "Silver Aluminum (40mm)", new Money(20.00m, "USD"), 25, 5, "91827364512");
         prodWatch.AddImage(Guid.NewGuid(), "https://images.unsplash.com/photo-1523275335684-37898b6baf30", "Smart Watch Black", isPrimary: true, 1);
 
         await context.Products.AddRangeAsync(prodHeadphones, prodKeyboard, prodWatch);
